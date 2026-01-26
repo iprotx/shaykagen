@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageUploader from './components/ImageUploader';
 import PromptInput from './components/PromptInput';
 import ActionButton from './components/ActionButton';
@@ -16,6 +16,26 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'transform' | 'sticker'>('transform');
+  const [isKeySelected, setIsKeySelected] = useState<boolean>(true);
+
+  // Check if an API key is selected via the AI Studio bridge
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setIsKeySelected(selected);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      // Assume success and proceed to mitigate race conditions
+      setIsKeySelected(true);
+    }
+  };
 
   const onImageSelected = (base64: string, mime: string) => {
     setRefImage({ base64, mime });
@@ -29,11 +49,7 @@ const App: React.FC = () => {
       setError('Загрузи ублюдка сначала!');
       return;
     }
-    if (!prompt.trim() && !selectedChar) {
-      setError('Напиши хоть что-то или выбери жертву!');
-      return;
-    }
-
+    
     setLoading(true);
     setError(null);
     setMode(targetMode);
@@ -49,13 +65,49 @@ const App: React.FC = () => {
       setResultUrl(result);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Сбой в матрице шайки. Возможно, ключ неверный.');
+      if (err.message?.includes("entity was not found") || err.message?.includes("403")) {
+        setIsKeySelected(false);
+        setError("Ошибка доступа. Нужно выбрать API ключ.");
+      } else {
+        setError(err.message || "Сбой системы.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const characters: Character[] = ['ЛЫСЫЙ', 'ДУМЧИК', 'БОССИК', 'ДЕНЧИК', 'НЕО'];
+
+  // If no key is detected/selected, show the activation screen
+  if (!isKeySelected) {
+    return (
+      <div className="w-full max-w-xl glass rounded-[3rem] p-12 text-center space-y-8 animate-in zoom-in duration-500 shadow-2xl border border-white/10 mt-20">
+        <div className="space-y-4">
+          <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Доступ ограничен</h2>
+          <p className="text-white/60 text-sm leading-relaxed">
+            Для работы «Шайки» необходимо активировать систему через твой API ключ. 
+            Убедись, что ключ добавлен в Google AI Studio.
+          </p>
+        </div>
+        <div className="space-y-4">
+          <button
+            onClick={handleSelectKey}
+            className="w-full py-5 rounded-2xl bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-[0_0_30px_rgba(168,85,247,0.5)]"
+          >
+            Активировать систему
+          </button>
+          <a 
+            href="https://ai.google.dev/gemini-api/docs/billing" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="block text-[10px] text-white/30 hover:text-white/50 uppercase tracking-widest underline decoration-white/10"
+          >
+            Узнать про биллинг и ключи
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-6xl space-y-10 animate-in fade-in slide-in-from-top-4 duration-700">
@@ -71,15 +123,13 @@ const App: React.FC = () => {
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <section className="lg:col-span-5 flex flex-col space-y-6">
           <div className="glass rounded-[2.5rem] p-6 md:p-8 space-y-8 shadow-2xl">
-            {/* Image Upload */}
             <div className="space-y-4">
               <label className="text-purple-300/60 text-[10px] font-black uppercase tracking-widest px-1">
-                {refImage ? 'Ублюдок загружен' : '1. Загрузи ублюдка сюда'}
+                {refImage ? 'Ублюдок в системе' : '1. Загрузи ублюдка'}
               </label>
               <ImageUploader onImageSelected={onImageSelected} previewUrl={previewUrl} />
             </div>
 
-            {/* Character Selection */}
             {previewUrl && (
               <div className="space-y-4 animate-in fade-in zoom-in duration-500">
                 <label className="text-purple-300/60 text-[10px] font-black uppercase tracking-widest px-1">Кто же он?</label>
@@ -101,15 +151,14 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Instruction */}
             <div className="space-y-4">
-              <label className="text-purple-300/60 text-[10px] font-black uppercase tracking-widest px-1">Как накажем его?</label>
+              <label className="text-purple-300/60 text-[10px] font-black uppercase tracking-widest px-1">План экзекуции</label>
               <PromptInput prompt={prompt} onChange={setPrompt} disabled={loading} />
             </div>
 
             {error && (
-              <div className="bg-red-500/20 border border-red-500/40 text-red-200 px-4 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-wider animate-bounce">
-                ⚠️ {error}
+              <div className="bg-red-500/20 border border-red-500/40 text-red-200 px-4 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-wider animate-in slide-in-from-left-2 duration-300">
+                <p>⚠️ {error}</p>
               </div>
             )}
 
@@ -135,13 +184,6 @@ const App: React.FC = () => {
                 Стикер
               </button>
             </div>
-            
-            <button 
-              onClick={() => { setRefImage(null); setPreviewUrl(null); setPrompt(''); setSelectedChar(null); setResultUrl(null); }}
-              className="w-full text-white/10 hover:text-white/30 text-[9px] font-black uppercase tracking-[0.3em] transition-all"
-            >
-              Отпустить грехи (сброс)
-            </button>
           </div>
         </section>
 

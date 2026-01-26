@@ -9,37 +9,24 @@ interface EditImageParams {
 }
 
 export async function transformImage({ base64ImageData, mimeType, prompt, character, isSticker }: EditImageParams): Promise<string> {
-  const apiKey = process.env.API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("API Key не найден. Проверьте настройки Environment Variables (API_KEY) в Vercel.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Always create a new instance right before making an API call 
+  // to ensure it uses the most up-to-date API key from the environment.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   let characterPrompt = "";
   if (character === 'ЛЫСЫЙ') characterPrompt = "Сделай человека на фото абсолютно лысым, как колено.";
-  if (character === 'ДУМЧИК') characterPrompt = "Одень этого персонажа в униформу ФСН (спецслужбы).";
-  if (character === 'БОССИК') characterPrompt = "Одень этого персонажа в форму полицейского РФ.";
-  if (character === 'НЕО') characterPrompt = "Визуально измени пропорции так, чтобы человек выглядел ростом ровно 1.50 метра.";
+  if (character === 'ДУМЧИК') characterPrompt = "Одень этого персонажа в униформу спецслужб.";
+  if (character === 'БОССИК') characterPrompt = "Одень этого персонажа в форму полицейского.";
+  if (character === 'НЕО') characterPrompt = "Визуально измени пропорции так, чтобы человек выглядел очень низким (ростом 1.50 метра).";
   
-  const faceInstruction = "ВАЖНО: НЕ МЕНЯЙ ЛИЦО. Лицо должно остаться на 100% оригинальным, узнаваемым и идентичным исходному фото. Только меняй окружение, одежду или прическу согласно запросу.";
+  const faceInstruction = "ВАЖНО: НЕ МЕНЯЙ ЛИЦО. Лицо должно остаться на 100% оригинальным и узнаваемым. Меняй только окружение, одежду или прическу.";
 
   let finalSystemInstruction = "";
   
   if (isSticker) {
-    finalSystemInstruction = `Создай крутой цифровой стикер. 
-      Стиль: чистый векторный рисунок или высококачественная 3D иллюстрация. 
-      Обязательно: жирный белый контур (white border), плоский яркий фон. 
-      Описание: ${prompt} ${characterPrompt}. 
-      ${base64ImageData ? 'Используй лицо с фото как основу для персонажа стикера, сохраняя узнаваемость.' : ''}
-      ${faceInstruction}`;
+    finalSystemInstruction = `Создай крутой цифровой стикер. Стиль: чистый векторный рисунок. Обязательно: жирный белый контур (white border), яркий фон. Описание: ${prompt} ${characterPrompt}. ${faceInstruction}`;
   } else {
-    finalSystemInstruction = `Трансформируй это фото. 
-      Запрос пользователя: ${prompt}. 
-      Дополнительная цель: ${characterPrompt}. 
-      ${faceInstruction} 
-      Стиль: реалистичный, кинематографичный.`;
+    finalSystemInstruction = `Трансформируй это фото. Запрос: ${prompt}. Доп. цель: ${characterPrompt}. ${faceInstruction} Стиль: реалистичный.`;
   }
 
   try {
@@ -65,22 +52,20 @@ export async function transformImage({ base64ImageData, mimeType, prompt, charac
       }
     });
 
-    if (!response.candidates?.[0]?.content?.parts) {
-      throw new Error("Пустой ответ от шайки AI. Возможно, сработали фильтры безопасности (запрещенный контент).");
+    const candidate = response.candidates?.[0];
+    if (!candidate || !candidate.content?.parts) {
+      throw new Error("AI не смог сгенерировать изображение. Попробуйте другой запрос.");
     }
 
-    for (const part of response.candidates[0].content.parts) {
+    for (const part of candidate.content.parts) {
       if (part.inlineData) {
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
     
-    throw new Error("Изображение потерялось в подворотне. Попробуйте другой запрос.");
+    throw new Error("Изображение не найдено в ответе.");
   } catch (error: any) {
     console.error("AI Error:", error);
-    if (error.status === 403 || error.message?.includes("403")) {
-      throw new Error("Ошибка 403: Доступ запрещен. Проверьте, включен ли Gemini API в Google Cloud Console и правильно ли указан ключ.");
-    }
     throw error;
   }
 }
