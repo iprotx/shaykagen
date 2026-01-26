@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import ImageUploader from './components/ImageUploader';
 import PromptInput from './components/PromptInput';
 import ActionButton from './components/ActionButton';
@@ -36,6 +36,7 @@ const App: React.FC = () => {
 
     setLoading(true);
     setError(null);
+    setMode(targetMode);
     
     try {
       const result = await transformImage({
@@ -47,7 +48,8 @@ const App: React.FC = () => {
       });
       setResultUrl(result);
     } catch (err: any) {
-      setError(err.message || 'Сбой в матрице шайки');
+      console.error(err);
+      setError(err.message || 'Сбой в матрице шайки. Возможно, ключ неверный.');
     } finally {
       setLoading(false);
     }

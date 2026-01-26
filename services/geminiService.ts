@@ -9,7 +9,13 @@ interface EditImageParams {
 }
 
 export async function transformImage({ base64ImageData, mimeType, prompt, character, isSticker }: EditImageParams): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("API Key не найден. Проверьте настройки Environment Variables (API_KEY) в Vercel.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   let characterPrompt = "";
   if (character === 'ЛЫСЫЙ') characterPrompt = "Сделай человека на фото абсолютно лысым, как колено.";
@@ -24,7 +30,7 @@ export async function transformImage({ base64ImageData, mimeType, prompt, charac
   if (isSticker) {
     finalSystemInstruction = `Создай крутой цифровой стикер. 
       Стиль: чистый векторный рисунок или высококачественная 3D иллюстрация. 
-      Обязательно: жирный белый контур (white border), плоский яркий фон или прозрачный фон. 
+      Обязательно: жирный белый контур (white border), плоский яркий фон. 
       Описание: ${prompt} ${characterPrompt}. 
       ${base64ImageData ? 'Используй лицо с фото как основу для персонажа стикера, сохраняя узнаваемость.' : ''}
       ${faceInstruction}`;
@@ -52,10 +58,15 @@ export async function transformImage({ base64ImageData, mimeType, prompt, charac
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: contents,
+      config: {
+        imageConfig: {
+          aspectRatio: "1:1"
+        }
+      }
     });
 
     if (!response.candidates?.[0]?.content?.parts) {
-      throw new Error("Пустой ответ от шайки AI.");
+      throw new Error("Пустой ответ от шайки AI. Возможно, сработали фильтры безопасности (запрещенный контент).");
     }
 
     for (const part of response.candidates[0].content.parts) {
@@ -64,9 +75,12 @@ export async function transformImage({ base64ImageData, mimeType, prompt, charac
       }
     }
     
-    throw new Error("Изображение потерялось в подворотне.");
+    throw new Error("Изображение потерялось в подворотне. Попробуйте другой запрос.");
   } catch (error: any) {
     console.error("AI Error:", error);
-    throw new Error(error.message || "Ошибка генерации");
+    if (error.status === 403 || error.message?.includes("403")) {
+      throw new Error("Ошибка 403: Доступ запрещен. Проверьте, включен ли Gemini API в Google Cloud Console и правильно ли указан ключ.");
+    }
+    throw error;
   }
 }
