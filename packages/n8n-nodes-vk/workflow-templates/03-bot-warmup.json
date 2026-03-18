@@ -1,0 +1,18 @@
+{
+  "name": "VK Bot Warmup",
+  "nodes": [
+    {
+      "name": "Get Long Poll Server",
+      "type": "vkApiNode",
+      "resource": "bot",
+      "operation": "getLongPollServer"
+    },
+    {
+      "name": "Send Message",
+      "type": "vkApiNode",
+      "resource": "bot",
+      "operation": "sendMessage"
+    }
+  ],
+  "description": "Бот-прогрев: Long Poll + автоответы через messages.send"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "VK Target Audience Search",
+  "nodes": [
+    {
+      "name": "Search Cities",
+      "type": "vkApiNode",
+      "resource": "reference",
+      "operation": "searchCities"
+    },
+    {
+      "name": "Search Users",
+      "type": "vkApiNode",
+      "resource": "user",
+      "operation": "searchUsers"
+    }
+  ],
+  "description": "Шаблон поиска ЦА: city_id -> users.search с auto-pagination"
+}
