@@ -1,0 +1,23 @@
+{
+  "name": "n8n-nodes-vk-pro",
+  "version": "0.1.0",
+  "description": "Многофункциональная community-нода n8n для VK API",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp src/nodes/VkApi/vk.svg dist/nodes/VkApi/vk.svg",
+    "test": "node --test --experimental-strip-types test/**/*.test.ts",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": ["n8n-community-node-package", "n8n", "vk", "vk-api", "bots"],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": ["dist/credentials/VkApi.credentials.js"],
+    "nodes": ["dist/nodes/VkApi/VkApi.node.js"]
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}
