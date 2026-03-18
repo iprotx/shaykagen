@@ -1,0 +1,3 @@
+# Generated locally after npm pack.
+# Example:
+# sha256sum release/n8n-nodes-vksupertool-0.1.0.tgz
