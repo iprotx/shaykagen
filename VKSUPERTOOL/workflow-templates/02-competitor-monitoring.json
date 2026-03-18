@@ -1,0 +1,24 @@
+{
+  "name": "VK Competitor Monitoring",
+  "nodes": [
+    {
+      "name": "Search Groups",
+      "type": "vkSuperToolNode",
+      "resource": "group",
+      "operation": "searchGroups"
+    },
+    {
+      "name": "Get Group Admins",
+      "type": "vkSuperToolNode",
+      "resource": "group",
+      "operation": "getGroupAdmins"
+    },
+    {
+      "name": "Get Posts",
+      "type": "vkSuperToolNode",
+      "resource": "wall",
+      "operation": "getPosts"
+    }
+  ],
+  "description": "Мониторинг конкурентов: поиск групп, админов и контента"
+}
