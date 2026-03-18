@@ -8,16 +8,20 @@
 - Реализованы `VkApi.credentials.ts` и `transport.ts`.
 - Добавлена единая функция `vkRequest` с обработкой HTTP/API ошибок.
 
-## Этап 3 — Основные операции
-- User: `users.get`, `users.search`.
-- Wall: `wall.get`, `wall.post`.
-- Like: `likes.getList`, `likes.add`.
-- Bot: `messages.send`, `groups.getLongPollServer`.
+## Этап 3 — Расширение API для парсинга
+- Добавлен новый ресурс `Group`:
+  - `groups.search` (ключевые слова + `city_id`)
+  - `groups.getById`
+  - `groups.getMembers` с `filter=managers` (админы/менеджеры)
+- Расширен `users.search`:
+  - фильтр по полу (`sex`)
+  - фильтр по городу (`city`)
+  - фильтр по мобильному телефону (`has_mobile`)
 
-## Этап 4 — Тестирование
-- Написаны unit-тесты helper-функций (`normalizeOwnerId`, `buildQuery`, `randomId`).
-- Выполнены `lint`, `test`, `build`.
+## Этап 4 — Рефакторинг исполнения
+- Логика разбита на `execute*Operation` функции по ресурсам.
+- Упростили поддержку и расширение методов API.
 
-## Этап 5 — Документация
-- Добавлены `README.md` (установка + сценарии + debug).
-- Этот лог фиксирует прогресс и точки дебага каждого шага.
+## Этап 5 — Тестирование и документация
+- Проверка типов, тесты и сборка выполнены.
+- README обновлён практическими сценариями парсинга групп/админов/пользователей.

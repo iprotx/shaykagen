@@ -5,16 +5,19 @@
 ## Что реализовано
 
 - Авторизация через `Credentials` (`access_token`, `v`, `baseUrl`).
-- Работа с пользователями:
+- Пользователи:
   - `users.get`
-  - `users.search`
-- Парсинг данных со стены:
+  - `users.search` с фильтрами по полу, городу, наличию мобильного телефона (`has_mobile`)
+- Группы/сообщества:
+  - `groups.search` с фильтрацией по ключевым словам и `city_id`
+  - `groups.getById` для обогащения карточки сообщества
+  - `groups.getMembers` с `filter=managers` для парсинга админов/менеджеров
+- Контент и вовлеченность:
   - `wall.get`
   - `wall.post`
-- Работа с лайками:
   - `likes.getList`
   - `likes.add`
-- Базовые функции чат-бота:
+- Боты:
   - `messages.send`
   - `groups.getLongPollServer`
 
@@ -22,40 +25,50 @@
 
 ```bash
 cd packages/n8n-nodes-vk
-npm install
+npm run lint
+npm run test
 npm run build
 ```
 
 Далее подключите пакет как community node в n8n.
 
-## Отладка
+## Практические сценарии парсинга
 
-1. Проверить compile-time типы:
+1. **Поиск сообществ по нише и городу**
+   - Resource: `Group`
+   - Operation: `Search Groups`
+   - Введите `Keyword Query`, `City ID`, `Count`
+
+2. **Получение админов найденной группы**
+   - Resource: `Group`
+   - Operation: `Get Group Admins`
+   - Введите `Group ID`
+
+3. **Поиск пользователей ЦА**
+   - Resource: `User`
+   - Operation: `Search Users (Advanced)`
+   - Введите ключевое слово, `Sex`, `City ID`, `Has Mobile Phone`
+
+4. **Публикация и анализ вовлеченности**
+   - `Wall -> Create Post`
+   - `Like -> Get Likes`
+
+## Дебаг каждого этапа
+
+1. Проверка типов
 
 ```bash
-npm run lint
+../../node_modules/.bin/tsc -p tsconfig.json --noEmit
 ```
 
-2. Проверить unit-тесты helper-функций:
+2. Тесты helper-логики
 
 ```bash
-npm run test
+node --test --experimental-strip-types test/**/*.test.ts
 ```
 
-3. Проверить сборку для n8n:
+3. Сборка ноды
 
 ```bash
-npm run build
+../../node_modules/.bin/tsc -p tsconfig.json && cp src/nodes/VkApi/vk.svg dist/nodes/VkApi/vk.svg
 ```
-
-## Пример сценариев
-
-1. **Поиск пользователей по интересам**: `User -> Search Users`.
-2. **Мониторинг вовлеченности поста**: `Like -> Get Likes` по `owner_id + post_id`.
-3. **Постинг в сообщество**: `Wall -> Create Post` с `isGroupOwner=true`.
-4. **Чат-бот**: триггер + `Bot -> Send Message`.
-
-## Ограничения и roadmap
-
-- Пока реализованы только ключевые операции; API легко расширяется новыми методами.
-- Для production-ботов рекомендуются retry/backoff и анти-flood контроль на уровне workflow.

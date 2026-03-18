@@ -9,7 +9,7 @@ export interface INodeProperties {
 	description?: string;
 	typeOptions?: IDataObject;
 	displayOptions?: { show: Record<string, string[]> };
-	options?: Array<{ name: string; value: string }>;
+	options?: Array<{ name: string; value: string | number }>;
 }
 
 export interface ICredentialType {

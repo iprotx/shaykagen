@@ -21,6 +21,17 @@ test('buildQuery добавляет токен и версию API', () => {
 	assert.equal(query.get('v'), '5.199');
 });
 
+test('buildQuery пропускает пустые и undefined параметры', () => {
+	const query = buildQuery(
+		{ city: undefined, has_mobile: 1, q: '' },
+		{ accessToken: 'token', apiVersion: '5.199', baseUrl: 'https://api.vk.com/method' },
+	);
+
+	assert.equal(query.has('city'), false);
+	assert.equal(query.has('q'), false);
+	assert.equal(query.get('has_mobile'), '1');
+});
+
 test('randomId возвращает положительное число', () => {
 	const id = randomId();
 	assert.equal(Number.isInteger(id), true);
