@@ -11,6 +11,8 @@ import { normalizeOwnerId, randomId, vkRequest, type VkCredentials } from './tra
 
 const userFields = ['sex', 'bdate', 'city', 'contacts', 'domain', 'screen_name'].join(',');
 
+const optionalNumber = (value: number): number | undefined => (value > 0 ? value : undefined);
+
 export class VkApiNode implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'VK API Pro',
@@ -19,7 +21,7 @@ export class VkApiNode implements INodeType {
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
-		description: 'Пользователи, группы, стены, лайки, парсинг и чат-боты VK',
+		description: 'Пользователи, группы, справочники, стены, лайки, парсинг и чат-боты VK',
 		defaults: { name: 'VK API Pro' },
 		inputs: ['main'],
 		outputs: ['main'],
@@ -32,6 +34,7 @@ export class VkApiNode implements INodeType {
 				options: [
 					{ name: 'User', value: 'user' },
 					{ name: 'Group', value: 'group' },
+					{ name: 'Reference', value: 'reference' },
 					{ name: 'Wall', value: 'wall' },
 					{ name: 'Like', value: 'like' },
 					{ name: 'Bot', value: 'bot' },
@@ -58,8 +61,20 @@ export class VkApiNode implements INodeType {
 					{ name: 'Search Groups', value: 'searchGroups' },
 					{ name: 'Get Group By ID', value: 'getGroupById' },
 					{ name: 'Get Group Admins', value: 'getGroupAdmins' },
+					{ name: 'Get Group Members', value: 'getGroupMembers' },
 				],
 				default: 'searchGroups',
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				displayOptions: { show: { resource: ['reference'] } },
+				options: [
+					{ name: 'Search Cities', value: 'searchCities' },
+					{ name: 'Resolve Screen Name', value: 'resolveScreenName' },
+				],
+				default: 'searchCities',
 			},
 			{
 				displayName: 'Operation',
@@ -109,13 +124,13 @@ export class VkApiNode implements INodeType {
 				type: 'string',
 				displayOptions: {
 					show: {
-						resource: ['user', 'group'],
-						operation: ['searchUsers', 'searchGroups'],
+						resource: ['user', 'group', 'reference'],
+						operation: ['searchUsers', 'searchGroups', 'searchCities', 'resolveScreenName'],
 					},
 				},
 				default: '',
 				required: true,
-				description: 'Ключевая фраза для поиска',
+				description: 'Ключевая фраза или screen_name (для resolve)',
 			},
 			{
 				displayName: 'Count',
@@ -123,11 +138,24 @@ export class VkApiNode implements INodeType {
 				type: 'number',
 				displayOptions: {
 					show: {
-						resource: ['user', 'group', 'wall', 'like'],
-						operation: ['searchUsers', 'searchGroups', 'getPosts', 'getLikes', 'getGroupAdmins'],
+						resource: ['user', 'group', 'reference', 'wall', 'like'],
+						operation: ['searchUsers', 'searchGroups', 'searchCities', 'getPosts', 'getLikes', 'getGroupAdmins', 'getGroupMembers'],
 					},
 				},
 				default: 20,
+			},
+			{
+				displayName: 'Offset',
+				name: 'offset',
+				type: 'number',
+				displayOptions: {
+					show: {
+						resource: ['user', 'group', 'reference', 'wall', 'like'],
+						operation: ['searchUsers', 'searchGroups', 'searchCities', 'getPosts', 'getLikes', 'getGroupAdmins', 'getGroupMembers'],
+					},
+				},
+				default: 0,
+				description: 'Смещение для пагинации',
 			},
 			{
 				displayName: 'City ID',
@@ -140,7 +168,15 @@ export class VkApiNode implements INodeType {
 					},
 				},
 				default: 0,
-				description: '0 = не фильтровать. Узнать id можно через database.getCities',
+				description: '0 = не фильтровать. Используйте Reference -> Search Cities',
+			},
+			{
+				displayName: 'Country ID',
+				name: 'countryId',
+				type: 'number',
+				displayOptions: { show: { resource: ['reference'], operation: ['searchCities'] } },
+				default: 1,
+				description: 'ID страны для database.getCities (по умолчанию Россия=1)',
 			},
 			{
 				displayName: 'Sex',
@@ -155,12 +191,40 @@ export class VkApiNode implements INodeType {
 				default: 0,
 			},
 			{
+				displayName: 'Age From',
+				name: 'ageFrom',
+				type: 'number',
+				displayOptions: { show: { resource: ['user'], operation: ['searchUsers'] } },
+				default: 0,
+				description: '0 = не фильтровать',
+			},
+			{
+				displayName: 'Age To',
+				name: 'ageTo',
+				type: 'number',
+				displayOptions: { show: { resource: ['user'], operation: ['searchUsers'] } },
+				default: 0,
+				description: '0 = не фильтровать',
+			},
+			{
 				displayName: 'Has Mobile Phone',
 				name: 'hasMobile',
 				type: 'boolean',
 				displayOptions: { show: { resource: ['user'], operation: ['searchUsers'] } },
 				default: false,
 				description: 'Фильтр users.search -> has_mobile=1',
+			},
+			{
+				displayName: 'Member Filter',
+				name: 'memberFilter',
+				type: 'options',
+				displayOptions: { show: { resource: ['group'], operation: ['getGroupMembers'] } },
+				options: [
+					{ name: 'All', value: 'all' },
+					{ name: 'Friends', value: 'friends' },
+					{ name: 'Managers (Admins)', value: 'managers' },
+				],
+				default: 'all',
 			},
 			{
 				displayName: 'Owner ID',
@@ -222,7 +286,7 @@ export class VkApiNode implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['group', 'bot'],
-						operation: ['getGroupById', 'getGroupAdmins', 'getLongPollServer'],
+						operation: ['getGroupById', 'getGroupAdmins', 'getGroupMembers', 'getLongPollServer'],
 					},
 				},
 				default: 0,
@@ -255,8 +319,11 @@ export class VkApiNode implements INodeType {
 				{
 					q: ctx.getNodeParameter('query', index) as string,
 					count: ctx.getNodeParameter('count', index) as number,
+					offset: ctx.getNodeParameter('offset', index) as number,
 					sex: ctx.getNodeParameter('sex', index) as number,
-					city: cityId > 0 ? cityId : undefined,
+					age_from: optionalNumber(ctx.getNodeParameter('ageFrom', index) as number),
+					age_to: optionalNumber(ctx.getNodeParameter('ageTo', index) as number),
+					city: optionalNumber(cityId),
 					has_mobile: hasMobile ? 1 : undefined,
 					fields: userFields,
 				},
@@ -280,7 +347,8 @@ export class VkApiNode implements INodeType {
 				{
 					q: ctx.getNodeParameter('query', index) as string,
 					count: ctx.getNodeParameter('count', index) as number,
-					city_id: cityId > 0 ? cityId : undefined,
+					offset: ctx.getNodeParameter('offset', index) as number,
+					city_id: optionalNumber(cityId),
 					type: 'group,page,event',
 					sort: 0,
 				},
@@ -306,6 +374,22 @@ export class VkApiNode implements INodeType {
 					group_id: ctx.getNodeParameter('groupId', index) as number,
 					filter: 'managers',
 					count: ctx.getNodeParameter('count', index) as number,
+					offset: ctx.getNodeParameter('offset', index) as number,
+					fields: userFields,
+				},
+				credentials,
+			);
+		}
+
+		if (operation === 'getGroupMembers') {
+			const filter = ctx.getNodeParameter('memberFilter', index) as string;
+			return await vkRequest(
+				'groups.getMembers',
+				{
+					group_id: ctx.getNodeParameter('groupId', index) as number,
+					filter: filter === 'all' ? undefined : filter,
+					count: ctx.getNodeParameter('count', index) as number,
+					offset: ctx.getNodeParameter('offset', index) as number,
 					fields: userFields,
 				},
 				credentials,
@@ -313,6 +397,37 @@ export class VkApiNode implements INodeType {
 		}
 
 		throw new Error(`Неизвестная group-операция: ${operation}`);
+	}
+
+	private async executeReferenceOperation(
+		ctx: IExecuteFunctions,
+		index: number,
+		operation: string,
+		credentials: VkCredentials,
+	): Promise<IDataObject> {
+		if (operation === 'searchCities') {
+			return await vkRequest(
+				'database.getCities',
+				{
+					country_id: ctx.getNodeParameter('countryId', index) as number,
+					q: ctx.getNodeParameter('query', index) as string,
+					need_all: 1,
+					count: ctx.getNodeParameter('count', index) as number,
+					offset: ctx.getNodeParameter('offset', index) as number,
+				},
+				credentials,
+			);
+		}
+
+		if (operation === 'resolveScreenName') {
+			return await vkRequest(
+				'utils.resolveScreenName',
+				{ screen_name: ctx.getNodeParameter('query', index) as string },
+				credentials,
+			);
+		}
+
+		throw new Error(`Неизвестная reference-операция: ${operation}`);
 	}
 
 	private async executeWallOperation(
@@ -329,7 +444,11 @@ export class VkApiNode implements INodeType {
 		if (operation === 'getPosts') {
 			return await vkRequest(
 				'wall.get',
-				{ owner_id: owner, count: ctx.getNodeParameter('count', index) as number },
+				{
+					owner_id: owner,
+					count: ctx.getNodeParameter('count', index) as number,
+					offset: ctx.getNodeParameter('offset', index) as number,
+				},
 				credentials,
 			);
 		}
@@ -364,6 +483,7 @@ export class VkApiNode implements INodeType {
 					owner_id: owner,
 					item_id: ctx.getNodeParameter('itemId', index) as number,
 					count: ctx.getNodeParameter('count', index) as number,
+					offset: ctx.getNodeParameter('offset', index) as number,
 				},
 				credentials,
 			);
@@ -424,6 +544,8 @@ export class VkApiNode implements INodeType {
 					response = await this.executeUserOperation(this, index, operation, credentials);
 				} else if (resource === 'group') {
 					response = await this.executeGroupOperation(this, index, operation, credentials);
+				} else if (resource === 'reference') {
+					response = await this.executeReferenceOperation(this, index, operation, credentials);
 				} else if (resource === 'wall') {
 					response = await this.executeWallOperation(this, index, operation, credentials);
 				} else if (resource === 'like') {
