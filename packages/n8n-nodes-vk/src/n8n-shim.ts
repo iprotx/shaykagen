@@ -8,7 +8,7 @@ export interface INodeProperties {
 	required?: boolean;
 	description?: string;
 	typeOptions?: IDataObject;
-	displayOptions?: { show: Record<string, string[]> };
+	displayOptions?: { show: Record<string, Array<string | number | boolean>> };
 	options?: Array<{ name: string; value: string | number }>;
 }
 
@@ -42,7 +42,7 @@ export interface INodeExecutionData {
 export interface IExecuteFunctions {
 	getInputData(): INodeExecutionData[];
 	getCredentials(name: string): Promise<unknown>;
-	getNodeParameter(name: string, itemIndex: number): unknown;
+	getNodeParameter(name: string, itemIndex: number, fallbackValue?: unknown): unknown;
 	getNode(): { name: string };
 	continueOnFail(): boolean;
 }

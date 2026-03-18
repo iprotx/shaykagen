@@ -2,91 +2,46 @@
 
 Многофункциональная community-нода для n8n и VK API (dev.vk.com).
 
-## Что реализовано
+## Что нового в этой версии
 
-- Авторизация через `Credentials` (`access_token`, `v`, `baseUrl`).
-- Пользователи:
-  - `users.get`
-  - `users.search` с фильтрами по полу, возрасту, городу, наличию мобильного телефона (`has_mobile`)
-- Группы/сообщества:
-  - `groups.search` с фильтрацией по ключевым словам и `city_id`
-  - `groups.getById` для обогащения карточки сообщества
-  - `groups.getMembers` с `filter=managers` для парсинга админов/менеджеров
-  - `groups.getMembers` с режимами `all/friends/managers`
-- Справочники:
-  - `database.getCities` (поиск city_id по названию)
-  - `utils.resolveScreenName` (нормализация screen_name в object/id)
-- Контент и вовлеченность:
-  - `wall.get`
-  - `wall.post`
-  - `likes.getList`
-  - `likes.add`
-- Боты:
-  - `messages.send`
-  - `groups.getLongPollServer`
+- ✅ **Bulk-parsing (batched mode)**: авто-пагинация до лимита `Max Items` или до конца выдачи.
+- ✅ **Dedup pipeline**: удаление дублей по `id/screen_name/domain`.
+- ✅ **Enrichment pipeline**:
+  - users: `screen_name_url`, `city_title`
+  - groups: дополнительное обогащение через `groups.getById` и нормализация полей
+- ✅ **Anti-rate-limit**: retry/backoff стратегия (HTTP 429/5xx, VK error 6/9/10).
+- ✅ **Workflow templates**: готовые JSON-шаблоны под поиск ЦА, мониторинг конкурентов и бот-прогрев.
 
-## Плюсы для парсинга
+## Основные операции
 
-- Единый параметр `offset` для пагинации в ключевых парсинговых операциях.
-- Удобный сценарий: `searchCities -> searchGroups/searchUsers -> getGroupAdmins/getGroupMembers`.
-- Поля `contacts/city/screen_name` сразу возвращаются в поиске пользователей.
+- Users: `users.get`, `users.search`
+- Groups: `groups.search`, `groups.getById`, `groups.getMembers` (`managers/all/friends`)
+- Reference: `database.getCities`, `utils.resolveScreenName`
+- Wall: `wall.get`, `wall.post`
+- Likes: `likes.getList`, `likes.add`
+- Bot: `messages.send`, `groups.getLongPollServer`
 
-## Установка в n8n (локально)
+## Параметры production-парсинга
+
+- `Batch Mode`: включает loop-until-empty / loop-until-max-items.
+- `Max Items`: верхний лимит объёма данных на одну ноду.
+- `Deduplicate`: чистка дублей.
+- `Enrich Results`: обогащение профилей/групп.
+- `Retry Max`, `Retry Base Delay`, `Retry Backoff Factor`: anti-rate-limit параметры.
+
+## Готовые workflow templates
+
+Папка: `workflow-templates/`
+
+1. `01-target-audience-search.json` — поиск ЦА.
+2. `02-competitor-monitoring.json` — мониторинг конкурентов.
+3. `03-bot-warmup.json` — бот-прогрев.
+
+## Установка и проверка
 
 ```bash
 cd packages/n8n-nodes-vk
-npm run lint
-npm run test
-npm run build
-```
-
-Далее подключите пакет как community node в n8n.
-
-## Практические сценарии парсинга
-
-1. **Поиск сообществ по нише и городу**
-   - Resource: `Group`
-   - Operation: `Search Groups`
-   - Введите `Keyword Query`, `City ID`, `Count`, `Offset`
-
-2. **Получение админов найденной группы**
-   - Resource: `Group`
-   - Operation: `Get Group Admins`
-   - Введите `Group ID`, `Count`, `Offset`
-
-3. **Поиск пользователей ЦА**
-   - Resource: `User`
-   - Operation: `Search Users (Advanced)`
-   - Введите ключевое слово, `Sex`, `Age`, `City ID`, `Has Mobile Phone`
-
-4. **Нормализация ссылок / city_id**
-   - Resource: `Reference`
-   - `Resolve Screen Name` и `Search Cities`
-
-5. **Публикация и анализ вовлеченности**
-   - `Wall -> Create Post`
-   - `Like -> Get Likes`
-
-## Маркетинг-исследование
-
-См. `MARKET_RESEARCH_2026.md` — обзор рынка VK-парсеров, трендов и рекомендаций.
-
-## Дебаг каждого этапа
-
-1. Проверка типов
-
-```bash
-../../node_modules/.bin/tsc -p tsconfig.json --noEmit
-```
-
-2. Тесты helper-логики
-
-```bash
+tsc -p tsconfig.json --noEmit
 node --test --experimental-strip-types test/**/*.test.ts
-```
-
-3. Сборка ноды
-
-```bash
-../../node_modules/.bin/tsc -p tsconfig.json && cp src/nodes/VkApi/vk.svg dist/nodes/VkApi/vk.svg
+tsc -p tsconfig.json && cp src/nodes/VkApi/vk.svg dist/nodes/VkApi/vk.svg
 ```

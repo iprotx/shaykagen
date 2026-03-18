@@ -6,6 +6,12 @@ export interface VkCredentials {
 	baseUrl: string;
 }
 
+export interface RetryConfig {
+	maxRetries: number;
+	baseDelayMs: number;
+	backoffFactor: number;
+}
+
 export interface VkApiSuccess {
 	response: IDataObject;
 }
@@ -17,6 +23,11 @@ export interface VkApiError {
 		request_params?: Array<{ key: string; value: string }>;
 	};
 }
+
+const sleep = async (ms: number): Promise<void> => await new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetriableStatus = (status: number): boolean => status === 429 || status >= 500;
+const isRetriableVkError = (errorCode: number): boolean => errorCode === 6 || errorCode === 9 || errorCode === 10;
 
 export const randomId = (): number => {
 	const now = Date.now();
@@ -50,23 +61,43 @@ export const vkRequest = async (
 	method: string,
 	params: IDataObject,
 	credentials: VkCredentials,
+	retryConfig?: RetryConfig,
 ): Promise<IDataObject> => {
-	const query = buildQuery(params, credentials);
-	const endpoint = `${credentials.baseUrl}/${method}`;
-	const response = await fetch(endpoint, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: query.toString(),
-	});
+	const cfg: RetryConfig = retryConfig ?? { maxRetries: 0, baseDelayMs: 350, backoffFactor: 2 };
+	let attempt = 0;
 
-	if (!response.ok) {
-		throw new Error(`VK HTTP error: ${response.status} ${response.statusText}`);
+	while (attempt <= cfg.maxRetries) {
+		const query = buildQuery(params, credentials);
+		const endpoint = `${credentials.baseUrl}/${method}`;
+		const response = await fetch(endpoint, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: query.toString(),
+		});
+
+		if (!response.ok) {
+			if (attempt < cfg.maxRetries && isRetriableStatus(response.status)) {
+				const delay = Math.round(cfg.baseDelayMs * cfg.backoffFactor ** attempt);
+				await sleep(delay);
+				attempt += 1;
+				continue;
+			}
+			throw new Error(`VK HTTP error: ${response.status} ${response.statusText}`);
+		}
+
+		const payload = (await response.json()) as VkApiSuccess | VkApiError;
+		if ('error' in payload) {
+			if (attempt < cfg.maxRetries && isRetriableVkError(payload.error.error_code)) {
+				const delay = Math.round(cfg.baseDelayMs * cfg.backoffFactor ** attempt);
+				await sleep(delay);
+				attempt += 1;
+				continue;
+			}
+			throw new Error(`VK API error ${payload.error.error_code}: ${payload.error.error_msg}`);
+		}
+
+		return payload.response;
 	}
 
-	const payload = (await response.json()) as VkApiSuccess | VkApiError;
-	if ('error' in payload) {
-		throw new Error(`VK API error ${payload.error.error_code}: ${payload.error.error_msg}`);
-	}
-
-	return payload.response;
+	throw new Error('VK request retries exceeded');
 };
